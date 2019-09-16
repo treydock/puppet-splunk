@@ -5,7 +5,7 @@ require 'spec_helper'
 SPLUNK_TYPES.each do |type, file_name|
   describe Puppet::Type.type(type) do
     context 'attributes' do
-      [:name, :setting, :section].each do |parameter|
+      [:name, :setting, :section, :context].each do |parameter|
         describe parameter.to_s do
           it 'has a name attribute' do
             expect(described_class.attrclass(parameter)).not_to be_nil
@@ -25,8 +25,8 @@ SPLUNK_TYPES.each do |type, file_name|
         expect(described_class.attrtype(:setting)).to eq(:param)
       end
 
-      it 'has setting and section as namevars' do
-        expect(described_class.key_attributes.sort).to eq([:name, :section, :setting])
+      it 'has name, context, setting and section as namevars' do
+        expect(described_class.key_attributes.sort).to eq([:context, :name, :section, :setting])
       end
     end
 
@@ -69,6 +69,35 @@ SPLUNK_TYPES.each do |type, file_name|
     context 'provider' do
       it "has a file path of #{file_name}" do
         expect(described_class.provider(:ini_setting).file_name).to eq(file_name)
+      end
+    end
+
+    describe 'value property' do
+      it 'has a value property' do
+        expect(described_class.attrtype(:value)).to eq(:property)
+      end
+      context 'when testing value is insync' do
+        let(:resource) { described_class.new(title: 'foo/bar', value: 'value') }
+        let(:property) { resource.property(:value) }
+
+        before do
+          Puppet::Type.type(:splunk_config).new(
+            name: 'config',
+            server_confdir: '/opt/splunk/etc',
+            forwarder_confdir: '/opt/splunkforwarder/etc'
+          ).generate
+        end
+
+        it 'is insync if unencrypted `is` value matches `should` value' do
+          property.should = 'value'
+          expect(property).to be_safe_insync('value')
+        end
+        it 'is insync if encrypted `is` value matches `should` value after being decrypted' do
+          property.should = 'temp1234'
+          allow(File).to receive(:file?).with(%r{/opt/splunk(forwarder)?/etc/auth/splunk\.secret$}).and_return(true)
+          allow(IO).to receive(:binread).with(%r{/opt/splunk(forwarder)?/etc/auth/splunk\.secret$}).and_return('JX7cQAnH6Nznmild8MvfN8/BLQnGr8C3UYg3mqvc3ArFkaxj4gUt1RUCaRBD/r0CNn8xOA2oKX8/0uyyChyGRiFKhp6h2FA+ydNIRnN46N8rZov8QGkchmebZa5GAM5U50GbCCgzJFObPyWi5yT8CrSCYmv9cpRtpKyiX+wkhJwltoJzAxWbBERiLp+oXZnN3lsRn6YkljmYBqN9tZLTVVpsLvqvkezPgpv727Fd//5dRoWsWBv2zRp0mwDv3tj')
+          expect(property).to be_safe_insync('$7$aTVkS01HYVNJUk5wSnR5NIu4GXLhj2Qd49n2B6Y8qmA/u1CdL9JYxQ==')
+        end
       end
     end
   end

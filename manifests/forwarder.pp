@@ -1,221 +1,231 @@
-# Class: splunk
+# @summary
+#   Install and configure an instance of Splunk Universal Forwarder
 #
-# This class deploys the Splunk Universal Forwarder on Linux, Windows, Solaris
-# platforms.
+# @example Basic usage
+#   include splunk::forwarder
 #
-# Parameters:
+# @example Install specific version and build with admin passord management
+#    class { 'splunk::params':
+#      version => '7.2.5',
+#      build   => '088f49762779',
+#    }
+#    class { 'splunk::forwarder':
+#      package_ensure => latest,
+#      manage_password => true,
+#    }
 #
-# [*server*]
-#   The address of a server to send logs to.
+# @param server
+#   The fqdn or IP address of the Splunk server.
 #
-# [*package_source*]
+# @param version`
+#   Specifies the version of Splunk Forwarder the module should install and
+#   manage.
+#
+# @param package_name
+#   The name of the package(s) Puppet will use to install Splunk Forwarder.
+#
+# @param package_ensure
+#   Ensure parameter which will get passed to the Splunk package resource.
+#
+# @param staging_dir
+#   Root of the archive path to host the Splunk package.
+#
+# @param path_delimiter
+#   The path separator used in the archived path of the Splunk package.
+#
+# @param forwarder_package_src
 #   The source URL for the splunk installation media (typically an RPM, MSI,
-#   etc). If a $src_root parameter is set in splunk::params, this will be
+#   etc). If a `$src_root` parameter is set in splunk::params, this will be
 #   automatically supplied. Otherwise it is required. The URL can be of any
-#   protocol supported by the nanliu/staging module. On Windows, this can
-#   be a UNC path to the MSI.
+#   protocol supported by the puppet/archive module. On Windows, this can be
+#   a UNC path to the MSI.
 #
-# [*package_name*]
-#   The name of the package(s) as they will exist or be detected on the host.
+# @param package_provider
+#   The package management system used to host the Splunk packages.
 #
-# [*logging_port*]
-#   The port to send splunktcp logs to.
+# @param manage_package_source
+#   Whether or not to use the supplied `forwarder_package_src` param.
 #
-# [*splunkd_port*]
-#   The splunkd port. Used as a default for both splunk and splunk::forwarder.
+# @param package_source
+#   *Optional* The source URL for the splunk installation media (typically an RPM,
+#   MSI, etc). If `enterprise_package_src` parameter is set in splunk::params and
+#   `manage_package_source` is true, this will be automatically supplied. Otherwise
+#   it is required. The URL can be of any protocol supported by the puppet/archive
+#   module. On Windows, this can be a UNC path to the MSI.
 #
-# [*install_options*]
-#   The splunkd forwarder installation options. Only applicable for Windows.
+# @param install_options
+#   This variable is passed to the package resources' *install_options* parameter.
 #
-# [*splunkd_listen*]
-#   The address on which splunkd should listen. Defaults to localhost only.
+# @param splunk_user
+#   The user to run Splunk as.
 #
-# [*purge_inputs*]
-#   If set to true, will remove any inputs.conf configuration not supplied by
-#   Puppet from the target system. Defaults to false.
+# @param forwarder_homedir
+#   Specifies the Splunk Forwarder home directory.
 #
-# [*purge_outputs*]
-#   If set to true, will remove any outputs.conf configuration not supplied by
-#   Puppet from the target system. Defaults to false.
+# @param forwarder_confdir
+#   Specifies the Splunk Forwarder configuration directory.
 #
-# Actions:
+# @param service_name
+#   The name of the Splunk Forwarder service.
 #
-#   Declares parameters to be consumed by other classes in the splunk module.
+# @param service_file
+#   The path to the Splunk Forwarder service file.
 #
-# Requires: nothing
+# @param boot_start
+#   Whether or not to enable splunk boot-start, which generates a service file to
+#   manage the Splunk Forwarder service.
 #
-class splunk::forwarder (
-  $server                 = $splunk::params::server,
-  $package_source         = $splunk::params::forwarder_pkg_src,
-  $package_name           = $splunk::params::forwarder_pkg_name,
-  $package_ensure         = $splunk::params::forwarder_pkg_ensure,
-  $logging_port           = $splunk::params::logging_port,
-  $splunkd_port           = $splunk::params::splunkd_port,
-  $install_options        = $splunk::params::forwarder_install_options,
-  $splunk_user            = $splunk::params::splunk_user,
-  $splunkd_listen         = '127.0.0.1',
-  $purge_deploymentclient = false,
-  $purge_inputs           = false,
-  $purge_outputs          = false,
-  $purge_props            = false,
-  $purge_transforms       = false,
-  $purge_web              = false,
-  $pkg_provider           = $splunk::params::pkg_provider,
-  $forwarder_confdir      = $splunk::params::forwarder_confdir,
-  $forwarder_output       = $splunk::params::forwarder_output,
-  $forwarder_input        = $splunk::params::forwarder_input,
-  $create_password        = $splunk::params::create_password,
-  $addons                 = {},
-) inherits splunk::params {
+# @param use_default_config
+#   Whether or not the module should manage a default set of Splunk Forwarder
+#   configuration parameters.
+#
+# @param splunkd_listen
+#   The address on which splunkd should listen.
+#
+# @param splunkd_port
+#   The management port for Splunk.
+#
+# @param logging_port
+#   The port on which to send and listen for logs.
+#
+# @param purge_inputs
+#   *Optional* If set to true, inputs.conf will be purged of configuration that is
+#   no longer managed by the `splunkforwarder_input` type.
+#
+# @param purge_outputs
+#   *Optional* If set to true, outputs.conf will be purged of configuration that is
+#   no longer managed by the `splunk_output` type.
+#
+# @param purge_props
+#   *Optional* If set to true, props.conf will be purged of configuration that is
+#   no longer managed by the `splunk_props` type.
+#
+# @param purge_transforms
+#   *Optional* If set to true, transforms.conf will be purged of configuration that is
+#   no longer managed by the `splunk_transforms` type.
+#
+# @param purge_web
+#   *Optional* If set to true, web.conf will be purged of configuration that is
+#   no longer managed by the `splunk_web` type.
+#
+# @param forwarder_input
+#   Used to override the default `forwarder_input` type defined in splunk::params.
+#
+# @param forwarder_output
+#   Used to override the default `forwarder_output` type defined in splunk::params.
+#
+# @param manage_password
+#   If set to true, Manage the contents of splunk.secret and passwd.
+#
+# @param seed_password
+#   If set to true, Manage the contents of splunk.secret and user-seed.conf.
+#
+# @param reset_seed_password
+#   If set to true, deletes `password_config_file` to trigger Splunk's password
+#   import process on restart of the Splunk services.
+#
+# @param password_config_file
+#   Which file to put the password in i.e. in linux it would be
+#   `/opt/splunkforwarder/etc/passwd`.
+#
+# @param seed_config_file
+#   Which file to place the admin password hash in so its imported by Splunk on
+#   restart.
+#
+# @param password_content
+#   The hashed password username/details for the user.
+#
+# @param password_hash
+#   The hashed password for the admin user.
+#
+# @param secret_file
+#   Which file we should put the secret in.
+#
+# @param secret
+#   The secret used to salt the splunk password.
+#
+# @param addons
+#   Manage a splunk addons, see `splunk::addons`.
+#
+class splunk::forwarder(
+  String[1] $server                          = $splunk::params::server,
+  String[1] $version                         = $splunk::params::version,
+  String[1] $package_name                    = $splunk::params::forwarder_package_name,
+  String[1] $package_ensure                  = $splunk::params::forwarder_package_ensure,
+  String[1] $staging_dir                     = $splunk::params::staging_dir,
+  String[1] $path_delimiter                  = $splunk::params::path_delimiter,
+  String[1] $forwarder_package_src           = $splunk::params::forwarder_package_src,
+  Optional[String[1]] $package_provider      = $splunk::params::package_provider,
+  Boolean $manage_package_source             = true,
+  Optional[String[1]] $package_source        = undef,
+  Splunk::Fwdinstalloptions $install_options = $splunk::params::forwarder_install_options,
+  String[1] $splunk_user                     = $splunk::params::splunk_user,
+  Stdlib::Absolutepath $forwarder_homedir    = $splunk::params::forwarder_homedir,
+  Stdlib::Absolutepath $forwarder_confdir    = $splunk::params::forwarder_confdir,
+  String[1] $service_name                    = $splunk::params::forwarder_service,
+  Stdlib::Absolutepath $service_file         = $splunk::params::forwarder_service_file,
+  Boolean $boot_start                        = $splunk::params::boot_start,
+  Boolean $use_default_config                = true,
+  Stdlib::IP::Address $splunkd_listen        = '127.0.0.1',
+  Stdlib::Port $splunkd_port                 = $splunk::params::splunkd_port,
+  Stdlib::Port $logging_port                 = $splunk::params::logging_port,
+  Boolean $purge_deploymentclient            = false,
+  Boolean $purge_outputs                     = false,
+  Boolean $purge_inputs                      = false,
+  Boolean $purge_props                       = false,
+  Boolean $purge_transforms                  = false,
+  Boolean $purge_web                         = false,
+  Hash $forwarder_output                     = $splunk::params::forwarder_output,
+  Hash $forwarder_input                      = $splunk::params::forwarder_input,
+  Boolean $manage_password                   = $splunk::params::manage_password,
+  Boolean $seed_password                     = $splunk::params::seed_password,
+  Boolean $reset_seeded_password             = $splunk::params::reset_seeded_password,
+  Stdlib::Absolutepath $password_config_file = $splunk::params::forwarder_password_config_file,
+  Stdlib::Absolutepath $seed_config_file     = $splunk::params::forwarder_seed_config_file,
+  String[1] $password_content                = $splunk::params::password_content,
+  String[1] $password_hash                   = $splunk::params::password_hash,
+  Stdlib::Absolutepath $secret_file          = $splunk::params::forwarder_secret_file,
+  String[1] $secret                          = $splunk::params::secret,
+  Hash $addons                               = {},
+) inherits splunk {
 
-  $virtual_service = $splunk::params::forwarder_service
-  $staging_subdir  = $splunk::params::staging_subdir
-
-  $path_delimiter  = $splunk::params::path_delimiter
-  #no need for staging the source if we have yum or apt
-  if $pkg_provider != undef and $pkg_provider != 'yum' and $pkg_provider != 'apt' and $pkg_provider != 'chocolatey' {
-    include ::archive::staging
-
-    $src_pkg_filename = basename($package_source)
-    $pkg_path_parts   = [$archive::path, $staging_subdir, $src_pkg_filename]
-    $staged_package   = join($pkg_path_parts, $path_delimiter)
-
-    archive { $staged_package:
-      source  => $package_source,
-      extract => false,
-      before  => Package[$package_name],
-    }
+  if (defined(Class['splunk::enterprise'])) {
+    fail('Splunk Universal Forwarder provides a subset of Splunk Enterprise capabilities, and has potentially conflicting resources when included with Splunk Enterprise on the same node.  Do not include splunk::forwarder on the same node as splunk::enterprise.  Configure Splunk Enterprise to meet your forwarding needs.'
+    )
   }
 
-  Package  {
-    source          => $pkg_provider ? {
-      'chocolatey' => undef,
-      default      => pick($staged_package, $package_source),
-    },
+  if ($facts['os']['family'] == 'windows') and ($package_ensure == 'latest') {
+    fail('This module does not currently support continuously upgrading the Splunk Universal Forwarder on Windows. Please do not set "package_ensure" to "latest" on Windows.')
   }
 
-  package { $package_name:
-    ensure          => $package_ensure,
-    provider        => $pkg_provider,
-    before          => Service[$virtual_service],
-    install_options => $install_options,
-    tag             => 'splunk_forwarder',
+  if $manage_password and $seed_password {
+    fail('The setting "manage_password" and "seed_password" are in conflict with one another; they are two ways of accomplishing the same goal, "seed_password" is preferred according to Splunk documentation. If you need to reset the admin user password after initially installation then set "reset_seeded_password" temporarily.')
   }
 
-  # Declare addons
-  create_resources('splunk::addon', $addons)
-
-  # Ensure that the service restarts upon changes to addons
-  Package[$package_name] -> Splunk::Addon <||> ~> Service[$virtual_service]
-
-  # Declare inputs and outputs specific to the forwarder profile
-  $tag_resources = { tag => 'splunk_forwarder' }
-  create_resources( 'splunkforwarder_input',$forwarder_input, $tag_resources)
-  create_resources( 'splunkforwarder_output',$forwarder_output, $tag_resources)
-  # this is default
-  splunkforwarder_web { 'forwarder_splunkd_port':
-    section => 'settings',
-    setting => 'mgmtHostPort',
-    value   => "${splunkd_listen}:${splunkd_port}",
-    tag     => 'splunk_forwarder',
+  if $manage_password {
+    info("The setting \"manage_password\" will manage the contents of ${password_config_file} which Splunk changes on restart, this results in Puppet initiating a corrective change event on every run and will trigger a resart of all Splunk services")
   }
 
-  # If the purge parameters have been set, remove all unmanaged entries from
-  # the respective config files.
+  if $reset_seeded_password {
+    info("The setting \"reset_seeded_password\" will delete ${password_config_file} on each run of Puppet and generate a corrective change event, the file must be absent for Splunk's admin password seeding process to be triggered so this setting should only be used temporarily as it'll also cause a resart of the Splunk service")
+  }
+
+  contain 'splunk::forwarder::install'
+  contain 'splunk::forwarder::config'
+  contain 'splunk::forwarder::service'
+
+  Class['splunk::forwarder::install']
+  -> Class['splunk::forwarder::config']
+  ~> Class['splunk::forwarder::service']
 
   Splunk_config['splunk'] {
+    forwarder_confdir                => $forwarder_confdir,
     purge_forwarder_deploymentclient => $purge_deploymentclient,
     purge_forwarder_outputs          => $purge_outputs,
     purge_forwarder_inputs           => $purge_inputs,
     purge_forwarder_props            => $purge_props,
     purge_forwarder_transforms       => $purge_transforms,
     purge_forwarder_web              => $purge_web,
-  }
-
-  # This is a module that supports multiple platforms. For some platforms
-  # there is non-generic configuration that needs to be declared in addition
-  # to the agnostic resources declared here.
-  case $::kernel {
-    'Linux': {
-      class { '::splunk::platform::posix':
-        splunk_user  => $splunk_user,
-      }
-    }
-    'SunOS': { include ::splunk::platform::solaris }
-    default: { } # no special configuration needed
-  }
-
-  # Realize resources shared between server and forwarder profiles, and set up
-  # dependency chains.
-  include ::splunk::virtual
-
-  realize Service[$virtual_service]
-
-  Package[$package_name]
-  -> File <| tag   == 'splunk_forwarder' |>
-  -> Exec <| tag   == 'splunk_forwarder' |>
-  -> Service[$virtual_service]
-
-  Package[$package_name] -> Splunkforwarder_deploymentclient<||> ~> Service[$virtual_service]
-  Package[$package_name] -> Splunkforwarder_output<||>           ~> Service[$virtual_service]
-  Package[$package_name] -> Splunkforwarder_input<||>            ~> Service[$virtual_service]
-  Package[$package_name] -> Splunkforwarder_props<||>            ~> Service[$virtual_service]
-  Package[$package_name] -> Splunkforwarder_transforms<||>       ~> Service[$virtual_service]
-  Package[$package_name] -> Splunkforwarder_web<||>              ~> Service[$virtual_service]
-  Package[$package_name] -> Splunkforwarder_limits<||>           ~> Service[$virtual_service]
-  Package[$package_name] -> Splunkforwarder_server<||>           ~> Service[$virtual_service]
-
-  File {
-    owner => $splunk_user,
-    group => $splunk_user,
-    mode  => $facts['kernel'] ? {
-      'windows' => undef,
-      default   => '0600',
-    }
-  }
-
-  file { "${forwarder_confdir}/system/local/deploymentclient.conf":
-    ensure => file,
-    tag    => 'splunk_forwarder',
-  }
-
-  file { "${forwarder_confdir}/system/local/inputs.conf":
-    ensure => file,
-    tag    => 'splunk_forwarder',
-  }
-
-  file { "${forwarder_confdir}/system/local/outputs.conf":
-    ensure => file,
-    tag    => 'splunk_forwarder',
-  }
-
-  file { "${forwarder_confdir}/system/local/web.conf":
-    ensure => file,
-    tag    => 'splunk_forwarder',
-  }
-
-  file { "${forwarder_confdir}/system/local/limits.conf":
-    ensure => file,
-    tag    => 'splunk_forwarder',
-  }
-
-  file { "${forwarder_confdir}/system/local/server.conf":
-    ensure => file,
-    tag    => 'splunk_forwarder',
-  }
-
-  # Validate: if both Splunk and Splunk Universal Forwarder are installed on
-  # the same system, then they must use different admin ports.
-  if (defined(Class['splunk']) and defined(Class['splunk::forwarder'])) {
-    $s_port = $splunk::splunkd_port
-    $f_port = $splunk::forwarder::splunkd_port
-    if $s_port == $f_port {
-      fail(regsubst("Both splunk and splunk::forwarder are included, but both
-        are configured to use the same splunkd port (${s_port}). Please either
-        include only one of splunk, splunk::forwarder, or else configure them
-        to use non-conflicting splunkd ports.", '\s\s+', ' ', 'G')
-      )
-    }
   }
 
 }

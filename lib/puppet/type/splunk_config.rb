@@ -31,6 +31,7 @@ Puppet::Type.newtype(:splunk_config) do
     :purge_distsearch,
     :purge_indexes,
     :purge_limits,
+    :purge_metadata,
     :purge_props,
     :purge_server,
     :purge_serverclass,
@@ -68,6 +69,7 @@ Puppet::Type.newtype(:splunk_config) do
       Puppet::Type::Splunk_deploymentclient          => self[:purge_deploymentclient],
       Puppet::Type::Splunk_distsearch                => self[:purge_distsearch],
       Puppet::Type::Splunk_indexes                   => self[:purge_indexes],
+      Puppet::Type::Splunk_metadata                  => self[:purge_metadata],
       Puppet::Type::Splunk_props                     => self[:purge_props],
       Puppet::Type::Splunk_server                    => self[:purge_server],
       Puppet::Type::Splunk_serverclass               => self[:purge_serverclass],
@@ -99,6 +101,7 @@ Puppet::Type.newtype(:splunk_config) do
       :splunk_limits,
       :splunk_input,
       :splunk_output,
+      :splunk_metadata,
       :splunk_props,
       :splunk_server,
       :splunk_serverclass,
@@ -116,23 +119,42 @@ Puppet::Type.newtype(:splunk_config) do
       :splunkforwarder_props,
       :splunkforwarder_transforms,
       :splunkforwarder_web,
-      :splunkforwarder_server
+      :splunkforwarder_server,
+      :splunkforwarder_limits
     ].each do |res_type|
       provider_class = Puppet::Type.type(res_type).provider(:ini_setting)
       provider_class.file_path = self[:forwarder_confdir]
     end
   end
 
+  # Returns an array of contexts we want to consider when looking for
+  # resources of a particular type to purge
+  def contexts(type_class)
+    contexts = ['system/local'] # Always consider the default context
+    catalog_resources = catalog.resources.select { |r| r.is_a?(type_class) }
+    catalog_resources.each do |res|
+      contexts << res[:context]
+    end
+    contexts.uniq
+  end
+
   def purge_splunk_resources(type_class)
+    contexts(type_class).map do |context|
+      purge_splunk_resources_in_context(type_class, context)
+    end.flatten
+  end
+
+  def purge_splunk_resources_in_context(type_class, context)
     type_name = type_class.name
     purge_resources = []
     puppet_resources = []
 
     # Search the catalog for resource types matching the provided class
-    # type and build an array of puppet resources matching the namevar
-    # as section/setting
+    # type and context.  Then build an array of puppet resources matching
+    # the namevar as section/setting
     #
-    catalog_resources = catalog.resources.select { |r| r.is_a?(type_class) }
+    catalog_resources = catalog.resources.select { |r| r.is_a?(type_class) && r[:context] == context }
+    Puppet.debug "Found #{catalog_resources.size} #{type_class} resources in context #{context}"
     catalog_resources.each do |res|
       puppet_resources << res[:section] + '/' + res[:setting]
     end
@@ -140,12 +162,27 @@ Puppet::Type.newtype(:splunk_config) do
     # Search the configured instances of the class type and purge them if
     # the instance name (setion/setting) isn't found in puppet_resources
     #
-    Puppet::Type.type(type_name).instances.each do |instance|
+
+    # ini_setting's `instances` method will only work if the provider is
+    # configured with the complete file_path (including `context`).
+    # Temporarily update it before calling `instances`
+    #
+    provider = Puppet::Type.type(type_name).provider(:ini_setting)
+
+    save_file_path = provider.file_path
+    provider.file_path = File.join(save_file_path, context, provider.file_name)
+    instances = Puppet::Type.type(type_name).instances
+
+    # Restore the provider's original file_path
+    provider.file_path = save_file_path
+
+    instances.each do |instance|
       next if puppet_resources.include?(instance.name)
       purge_resources << Puppet::Type.type(type_name).new(
-        name: instance.name,
+        name: "Purge #{context} #{instance.name}",
         section: instance[:section],
         setting: instance[:setting],
+        context: context,
         ensure: :absent
       )
     end
