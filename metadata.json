@@ -70,11 +70,7 @@
     },
     {
       "name": "puppetlabs-inifile",
-<<<<<<< HEAD
-      "version_requirement": ">= 1.4.1 < 3.0.0"
-=======
       "version_requirement": ">= 1.4.1 < 4.0.0"
->>>>>>> master
     },
     {
       "name": "puppetlabs-concat",
